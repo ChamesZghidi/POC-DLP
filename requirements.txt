@@ -1,0 +1,15 @@
+pandas
+scikit-learn
+transformers
+accelerate>=1.1.0
+torch
+streamlit
+python-docx
+pypdf
+plotly
+matplotlib
+seaborn
+reportlab
+PyYAML
+python-dotenv
+msal

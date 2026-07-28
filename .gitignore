@@ -1,0 +1,89 @@
+
+# Fichiers volumineux
+*.exe
+*.dll
+*.so
+*.dylib
+*.iso
+*.img
+*.bin
+*.pdb
+
+# Fichiers compressés
+*.zip
+*.rar
+*.7z
+*.tar.gz
+*.tgz
+*.gz
+
+# Données volumineuses
+*.db
+*.sqlite
+*.sqlite3
+*.mdb
+*.csv
+*.h5
+*.pkl
+*.pickle
+*.pb
+*.sav
+
+# Médias
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.wmv
+*.flv
+*.mp3
+*.wav
+*.wma
+*.aac
+*.flac
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.psd
+*.ai
+*.eps
+*.svg
+
+# Logs et temporaires
+*.log
+*.tmp
+*.temp
+*.cache
+*.bak
+*.backup
+
+# Dépendances
+node_modules/
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+dist/
+build/
+*.egg-info/
+models/
+venv_dlp/
+git_status.txt
+
+# Environnement
+.env
+.env.local
+.env.*.local
+.vscode/
+.idea/
+
+# Système
+.DS_Store
+Thumbs.db
+desktop.ini

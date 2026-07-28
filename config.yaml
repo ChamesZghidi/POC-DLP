@@ -1,0 +1,73 @@
+# Configuration POC DLP — COMAR Assurances
+# Alignée sur le référentiel C1-C4 et préparation Microsoft Purview
+
+organisation:
+  nom: "COMAR Assurances"
+  domaines_internes:
+    - comar.tn
+    - comar.com.tn
+    - hayett.com.tn
+
+classification:
+  niveaux:
+    C1:
+      label: "Public"
+      couleur: "#2E7D32"
+      description: "Diffusion libre, sans restriction"
+    C2:
+      label: "Interne"
+      couleur: "#1565C0"
+      description: "Usage interne uniquement, journalisation"
+    C3:
+      label: "Confidentiel"
+      couleur: "#E65100"
+      description: "Données personnelles/financières, accès restreint"
+    C4:
+      label: "Hautement confidentiel"
+      couleur: "#C62828"
+      description: "Données de santé, stratégie, rémunération dirigeant"
+
+scoring:
+  alert_threshold: 70
+  entity_bonus_per_item: 4
+  entity_bonus_max: 12
+
+dlp:
+  canaux_approuves:
+    - "Teams professionnel"
+    - "OneDrive d'entreprise"
+    - "Exchange Online (Pro)"
+  canaux_interdits:
+    - "Messagerie personnelle (Gmail, Yahoo...)"
+    - "Clé USB non chiffrée"
+    - "Messagerie instantanée grand public (WhatsApp, etc.)"
+
+microsoft365:
+  enabled: false  # reste false hors tenant pilote explicitement autorisé
+  tenant_id: ""
+  client_id: ""
+  graph_application_permissions:
+    - "Mail.Read"       # sur une boîte pilote seulement (Application Access Policy recommandée)
+    - "Mail.Send"       # alertes DLP envoyées uniquement vers les destinataires déclarés
+    - "Files.Read.All"  # à remplacer par Sites.Selected si possible
+    - "User.Read.All"
+  target_user_id: ""    # UPN ou object ID de la boîte pilote ; jamais un utilisateur choisi automatiquement
+  sensitivity_labels:
+    C1: "Public"
+    C2: "Interne"
+    C3: "Confidentiel"
+    C4: "Hautement confidentiel"
+  purview:
+    simulation: true     # ne crée aucune règle cloud depuis ce POC
+    policy_template: "COMAR-DLP-POC"
+    locations:
+      - Exchange Online
+      - SharePoint
+      - OneDrive
+      - Teams
+
+tunisie:
+  indicatif: "+216"
+  prefixes_mobile: ["20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "50", "51", "52", "53", "54", "55", "56", "57", "58", "59", "90", "91", "92", "93", "94", "95", "96", "97", "98", "99"]
+  prefixes_fixe: ["70", "71", "72", "73", "74", "75", "76", "77", "78", "79"]
+  villes: ["Tunis", "Sfax", "Sousse", "Bizerte", "Gabès", "Nabeul", "Monastir", "Kairouan", "Ariana", "La Marsa"]
