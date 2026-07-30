@@ -24,6 +24,8 @@ class ClassificationResult:
     category: str = "Indeterminee"
     entities_found: list = field(default_factory=list)
     safeguards: list = field(default_factory=list)
+    evidence_terms: list[str] = field(default_factory=list)
+    explanation: str = ""
 
 
 class CamembertClassifier:
@@ -54,6 +56,7 @@ class CamembertClassifier:
         predicted_idx = int(self.torch.argmax(probs))
         confidence = float(probs[predicted_idx])
 
+        category = detect_category(text)
         level = self.LABELS[predicted_idx]
         safeguards = _high_risk_guardrails(text)
         # The ML model remains the primary classifier.  These narrowly scoped
@@ -63,12 +66,15 @@ class CamembertClassifier:
         # the model's classification.
         if safeguards:
             level = "C4"
+        evidence_terms = collect_evidence_terms(text, category)
         return ClassificationResult(
             level=level,
             confidence=round(confidence, 3),
-            category=detect_category(text),
+            category=category,
             entities_found=count_sensitive_entities(text),
             safeguards=safeguards,
+            evidence_terms=evidence_terms,
+            explanation=build_classification_explanation(level, category, evidence_terms, safeguards, count_sensitive_entities(text)),
         )
 
 
@@ -217,6 +223,68 @@ def _high_risk_guardrails(text: str) -> list[str]:
     return safeguards
 
 
+def collect_evidence_terms(text: str, category: str | None = None) -> list[str]:
+    normalized_text = _normalise(text)
+    if not normalized_text:
+        return []
+
+    display_aliases = {
+        "certificat medical": "certificat médical",
+        "dossier medical": "dossier médical",
+        "compte rendu medical": "compte-rendu médical",
+        "secret medical": "secret médical",
+        "resultat d analyse": "résultat d'analyse",
+        "bilan biologique": "bilan biologique",
+        "imagerie medicale": "imagerie médicale",
+        "diagnostic": "diagnostic",
+        "patient": "patient",
+        "cnam": "cnam",
+        "mutuelle": "mutuelle",
+        "arret maladie": "arrêt maladie",
+        "arret de travail": "arrêt de travail",
+        "incapacite temporaire": "incapacité temporaire",
+        "hospitalisation": "hospitalisation",
+        "sante": "santé",
+        "maladie": "maladie",
+        "medecin": "médecin",
+        "pharmacien": "pharmacien",
+        "hopital": "hôpital",
+        "clinique": "clinique",
+    }
+
+    candidates: list[tuple[float, str]] = []
+    categories_to_scan = [category] if category else list(CATEGORY_WEIGHTS.keys())
+    for current_category in categories_to_scan:
+        for phrase, weight in CATEGORY_WEIGHTS.get(current_category, {}).items():
+            if weight <= 0:
+                continue
+            if _occurrences(normalized_text, phrase):
+                candidates.append((weight, phrase))
+
+    if not candidates:
+        return []
+
+    unique_terms: list[str] = []
+    seen: set[str] = set()
+    for _, phrase in sorted(candidates, key=lambda item: (-item[0], item[1])):
+        display = display_aliases.get(phrase, phrase)
+        if display not in seen:
+            unique_terms.append(display)
+            seen.add(display)
+    return unique_terms[:8]
+
+
+def build_classification_explanation(level: str, category: str, evidence_terms: list[str], safeguards: list[str], entities_found: list[str]) -> str:
+    details: list[str] = [f"Niveau {level} · catégorie {category}"]
+    if evidence_terms:
+        details.append("indicateurs: " + ", ".join(evidence_terms))
+    if safeguards:
+        details.append("garde-fous: " + "; ".join(safeguards))
+    if entities_found:
+        details.append("entités: " + ", ".join(entities_found))
+    return " | ".join(details)
+
+
 def detect_category(text: str) -> str:
     text_lower = _normalise(text)
     scores = {category: 0.0 for category in CATEGORIES}
@@ -326,12 +394,16 @@ def classify_demo_without_model(text: str) -> ClassificationResult:
             elif any(kw in text_lower for kw in ["interne", "note de service", "réunion", "planning"]):
                 level = "C2"
 
+    category = detect_category(text)
+    evidence_terms = collect_evidence_terms(text, category)
     return ClassificationResult(
         level=level,
         confidence=0.0,
-        category=detect_category(text),
+        category=category,
         entities_found=count_sensitive_entities(text),
         safeguards=safeguards,
+        evidence_terms=evidence_terms,
+        explanation=build_classification_explanation(level, category, evidence_terms, safeguards, count_sensitive_entities(text)),
     )
 
 

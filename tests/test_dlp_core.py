@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from extraction import extract_text
 from classification import _high_risk_guardrails, classify_archive_items, detect_category
+from generate_dataset import anonymize_text, generate_dataset
 from policy import check_transfer_policy
 from m365_integration import M365Integration
 
@@ -71,6 +72,16 @@ class ExtractionTests(unittest.TestCase):
         )
         self.assertTrue(any("C4 santé" in item for item in safeguards))
 
+    def test_classification_explanation_lists_detected_terms(self):
+        from classification import classify_demo_without_model
+
+        text = "Certificat médical du patient, diagnostic confirmé, dossier médical confidentiel."
+        result = classify_demo_without_model(text)
+        self.assertEqual(result.level, "C4")
+        self.assertTrue(result.evidence_terms)
+        self.assertIn("certificat médical", result.evidence_terms)
+        self.assertIn("diagnostic", result.explanation.lower())
+
     def test_c4_safeguards_cover_other_critical_categories(self):
         cases = [
             ("Projet de fusion soumis au comité exécutif pour due diligence.", "C4 stratégie"),
@@ -79,6 +90,20 @@ class ExtractionTests(unittest.TestCase):
         ]
         for text, expected in cases:
             self.assertTrue(any(expected in item for item in _high_risk_guardrails(text)))
+
+    def test_anonymize_text_replaces_identifiers_with_placeholders(self):
+        sample = "Certificat médical pour Karim Ben Ali, CIN 01234567, Tél: +216 22 123 456."
+        anonymized = anonymize_text(sample)
+        self.assertNotIn("Karim Ben Ali", anonymized)
+        self.assertNotIn("01234567", anonymized)
+        self.assertIn("[PERSONNE]", anonymized)
+        self.assertIn("[IDENTIFIANT]", anonymized)
+
+    def test_generated_dataset_is_anonymized_and_labeled(self):
+        rows = generate_dataset(n_per_doc_type=2)
+        self.assertTrue(rows)
+        self.assertTrue(all(row["anonymized"] for row in rows))
+        self.assertTrue(all("[" in row["texte"] and "]" in row["texte"] for row in rows))
 
     def test_counter_examples_are_classified_c1_or_c2(self):
         from classification import classify_demo_without_model
@@ -118,6 +143,19 @@ class PolicyTests(unittest.TestCase):
         result = check_transfer_policy("C3", "a@comar.tn", "b@example.org", "Exchange Online (Pro)", False)
         self.assertFalse(result.allowed)
         self.assertTrue(result.alert_triggered)
+
+    def test_sensitive_external_transfer_requires_justification(self):
+        result = check_transfer_policy(
+            "C3",
+            "a@comar.tn",
+            "b@example.org",
+            "Exchange Online (Pro)",
+            True,
+            justification="",
+        )
+        self.assertFalse(result.allowed)
+        self.assertTrue(result.alert_triggered)
+        self.assertIn("justification", result.reason.lower())
 
 
 class M365Tests(unittest.TestCase):

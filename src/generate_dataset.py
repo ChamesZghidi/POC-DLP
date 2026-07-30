@@ -15,6 +15,7 @@ Usage :
 
 import csv
 import random
+import re
 from pathlib import Path
 
 from taxonomy import DOCUMENT_TYPES
@@ -274,6 +275,20 @@ TEMPLATES_BY_DOC_TYPE = {
 }
 
 
+def anonymize_text(text: str) -> str:
+    """Anonymise les exemples de dataset pour respecter le cahier de charge."""
+    anonymized = text
+    anonymized = re.sub(r"\b(?:[01]\d{7}|\d{8})\b", "[IDENTIFIANT]", anonymized)
+    anonymized = re.sub(r"\b(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", "[PERSONNE]", anonymized)
+    anonymized = re.sub(r"\b(?:Dr\.|Docteur)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b", "[MEDECIN]", anonymized)
+    anonymized = re.sub(r"\b(?:service|service\s+[A-Za-zÀ-ÿ]+)\b", "[SERVICE]", anonymized, flags=re.IGNORECASE)
+    anonymized = re.sub(r"\b(?:Tél|Téléphone|Mobile|Fixe)\s*[:\-]?\s*(?:\+216[\s\-\.]?\d{8}|\d{8})", "[CONTACT]", anonymized, flags=re.IGNORECASE)
+    anonymized = re.sub(r"\b(?:IBAN|RIB|CIN|Matricule|Numéro de police|Numéro de sinistre)\b", "[IDENTIFIANT]", anonymized, flags=re.IGNORECASE)
+    anonymized = anonymized.replace("COMAR Assurances", "[ORGANISATION]").replace("COMAR", "[ORGANISATION]")
+    anonymized = anonymized.replace("CNAM", "[ORGANISME]").replace("mutuelle", "[ORGANISME]")
+    return anonymized
+
+
 def generate_dataset(n_per_doc_type: int = 30) -> list:
     rows = []
     for doc_type in DOCUMENT_TYPES:
@@ -285,11 +300,15 @@ def generate_dataset(n_per_doc_type: int = 30) -> list:
             text = template.format(**ctx())
             if doc_type.niveau == "C4":
                 text = f"{text} {random.choice(C4_CONTEXTS)}"
+            anonymized = anonymize_text(text)
+            if not re.search(r"\[(?:PERSONNE|IDENTIFIANT|SERVICE|CONTACT|ORGANISATION|ORGANISME|DONNEES)\]", anonymized):
+                anonymized = f"[DONNEES] {anonymized}"
             rows.append({
-                "texte": text,
+                "texte": anonymized,
                 "categorie": doc_type.categorie,
                 "label": doc_type.niveau,
                 "type_document": doc_type.nom,
+                "anonymized": True,
             })
     random.shuffle(rows)
     return rows
@@ -302,7 +321,7 @@ def main():
     rows = generate_dataset(n_per_doc_type=30)
 
     with open(output_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["texte", "categorie", "label", "type_document"])
+        writer = csv.DictWriter(f, fieldnames=["texte", "categorie", "label", "type_document", "anonymized"])
         writer.writeheader()
         writer.writerows(rows)
 

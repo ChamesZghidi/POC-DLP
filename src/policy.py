@@ -127,7 +127,12 @@ def is_internal_email(email_str: str) -> bool:
 
 
 def check_transfer_policy(
-    level: str, sender: str, recipient: str, channel: str, is_encrypted: bool
+    level: str,
+    sender: str,
+    recipient: str,
+    channel: str,
+    is_encrypted: bool,
+    justification: str | None = None,
 ) -> TransferCheckResult:
     """
     Simule la politique COMAR d'encadrement des transferts internes et externes (C1-C4) :
@@ -183,19 +188,26 @@ def check_transfer_policy(
     # 3. Niveau C3 - Confidentiel
     if level == "C3":
         if not dest_interne:
+            if not justification or not justification.strip():
+                return TransferCheckResult(
+                    allowed=False,
+                    alert_triggered=True,
+                    message="🔴 Transfert Bloqué : justification métier obligatoire.",
+                    reason="Le transfert externe d'un document C3 (Confidentiel) requiert une justification métier et un chiffrement conforme à la politique COMAR.",
+                )
             if is_encrypted:
                 return TransferCheckResult(
                     allowed=True,
                     alert_triggered=False,
                     message="✅ Transfert autorisé vers l'externe (Chiffré).",
-                    reason="Le transfert externe d'un document C3 (Confidentiel) est autorisé car la pièce jointe est chiffrée et partagée via un outil approuvé.",
+                    reason="Le transfert externe d'un document C3 (Confidentiel) est autorisé car la pièce jointe est chiffrée, partagée via un outil approuvé et justifiée par un besoin métier.",
                 )
             else:
                 return TransferCheckResult(
                     allowed=False,
                     alert_triggered=True,
                     message="🔴 Transfert Bloqué : Destinataire externe interdit sans chiffrement.",
-                    reason="Le transfert externe d'un document C3 (Confidentiel) requiert impérativement un chiffrement de la pièce jointe.",
+                    reason="Le transfert externe d'un document C3 (Confidentiel) requiert impérativement un chiffrement de la pièce jointe et une justification métier.",
                 )
         # Interne
         return TransferCheckResult(
@@ -212,7 +224,7 @@ def check_transfer_policy(
                 allowed=False,
                 alert_triggered=True,
                 message="🔴 Transfert Bloqué : Sortie externe interdite.",
-                reason="Les informations de niveau C4 (Hautement Confidentiel) ne peuvent jamais être transmises hors de l'organisation.",
+                reason="Les informations de niveau C4 (Hautement Confidentiel) ne peuvent jamais être transmises hors de l'organisation, même avec une justification métier.",
             )
         # Interne
         if is_encrypted:
