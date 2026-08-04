@@ -62,7 +62,7 @@ LEVEL_LABELS = {
     "C1": "Public",
     "C2": "Interne",
     "C3": "Confidentiel",
-    "C4": "Hautement confidentiel",
+    "C4": "Hautement Confidentiel",
 }
 
 CUSTOM_CSS = """

@@ -137,6 +137,21 @@ class ExtractionTests(unittest.TestCase):
         res = classify_demo_without_model(rapport_text)
         self.assertEqual(res.level, "C4")
 
+        # Dossier client avec données personnelles et bancaires (C4)
+        client_doc_text = """
+        DOSSIER CLIENT 
+        Compagnie d'assurance : COMAR Assurances
+        Nom : Mohamed Ben Salah
+        Date de naissance : 15/03/1985
+        Numéro CIN : 14667664 [CIN TN]
+        Adresse : 25 Rue de la République, Tunis
+        Téléphone : 98 456 789
+        Email : mohamed.bensalah@email.com
+        Compte bancaire : TN59 1234 5678 9012 3456
+        """
+        res = classify_demo_without_model(client_doc_text)
+        self.assertEqual(res.level, "C4")
+
 
 class PolicyTests(unittest.TestCase):
     def test_c3_external_transfer_requires_encryption(self):

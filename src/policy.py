@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 POLICY = {
     "C1": {
-        "description": "Public — accès libre, sans restriction.",
+        "description": "Public — Informations pouvant circuler librement à l'intérieur et à l'extérieur. Accès libre, sans restriction.",
         "impression": True,
         "copie": True,
         "telechargement": True,
@@ -29,7 +29,7 @@ POLICY = {
         "journalisation": False,
     },
     "C2": {
-        "description": "Interne — autorisé, mais toutes les actions sont journalisées.",
+        "description": "Interne — Informations devant être conservées au sein de la compagnie. Usage interne uniquement, journalisé.",
         "impression": True,
         "copie": True,
         "telechargement": True,
@@ -37,7 +37,7 @@ POLICY = {
         "journalisation": True,
     },
     "C3": {
-        "description": "Confidentiel — impression bloquée, autres actions journalisées.",
+        "description": "Confidentiel — Divulgation non autorisée préjudiciable. Impression bloquée, autres actions journalisées.",
         "impression": False,
         "copie": True,
         "telechargement": True,
@@ -45,7 +45,7 @@ POLICY = {
         "journalisation": True,
     },
     "C4": {
-        "description": "Hautement confidentiel — impression, copie, téléchargement et partage interdits.",
+        "description": "Hautement Confidentiel — Informations extrêmement sensibles (dommages catastrophiques). Impression, copie, téléchargement et partage interdits.",
         "impression": False,
         "copie": False,
         "telechargement": False,

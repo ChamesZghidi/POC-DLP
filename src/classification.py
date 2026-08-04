@@ -220,6 +220,24 @@ def _high_risk_guardrails(text: str) -> list[str]:
     legal_matches = [term for term in HIGH_RISK_SIGNAL_SETS["major_legal"] if _occurrences(normalized, term)]
     if len(legal_matches) >= 2:
         safeguards.append("C4 juridique : contentieux majeur explicite")
+
+    # C4 client/bancaire : Données personnelles des clients (numéros de CIN, etc.), informations bancaires (IBAN/RIB)
+    entities = count_sensitive_entities(text)
+    if "cin_tunisie" in entities:
+        safeguards.append("C4 client : numéro de CIN détecté")
+    has_bancaire = any(e in entities for e in ["iban_tn", "iban_fr", "iban", "rib_tunisie"])
+    if not has_bancaire:
+        # Recherche d'IBAN/RIB insensible aux espaces
+        stripped_text = re.sub(r"\s+", "", normalized.upper())
+        if re.search(r"\bTN\d{2}[A-Z0-9]{20}\b", stripped_text) or re.search(r"\bFR\d{2}[A-Z0-9]{23}\b", stripped_text) or re.search(r"\b\d{20}\b", stripped_text):
+            has_bancaire = True
+    if has_bancaire:
+        safeguards.append("C4 bancaire : coordonnées bancaires (IBAN/RIB) détectées")
+    if "dossier client" in normalized or "fiche client" in normalized:
+        personal_entities = [e for e in entities if e in ["email", "tel_tunisie_local", "tel_tunisie_intl"]]
+        if len(personal_entities) >= 1:
+            safeguards.append("C4 client : dossier personnel client")
+
     return safeguards
 
 
@@ -382,12 +400,12 @@ def classify_demo_without_model(text: str) -> ClassificationResult:
             if any(kw in text_lower for kw in [
                 "comité exécutif", "fusion", "dirigeant", "secret médical",
                 "certificat médical", "ordonnance", "dossier médical", "cnam",
-                "rapport médical", "médecin conseil",
+                "rapport médical", "médecin conseil", "dossier client", "fiche client",
+                "données personnelles", "cin", "iban", "rib", "bancaire",
             ]):
                 level = "C4"
             elif any(kw in text_lower for kw in [
-                "confidentiel", "contrat", "iban", "rib", "bancaire", "réservé",
-                "sinistre", "données personnelles", "cin", "devis", "simulation",
+                "confidentiel", "contrat", "réservé", "sinistre", "devis", "simulation",
                 "cotisation", "souscription", "police", "bulletin de paie",
             ]):
                 level = "C3"

@@ -13,19 +13,19 @@ classification:
     C1:
       label: "Public"
       couleur: "#2E7D32"
-      description: "Diffusion libre, sans restriction"
+      description: "Informations mises à disposition de tout le monde et dont la divulgation à un tiers n'est pas susceptible de causer d'impact particulier. Les informations peuvent circuler librement à l'intérieur et à l'extérieur de la compagnie."
     C2:
       label: "Interne"
       couleur: "#1565C0"
-      description: "Usage interne uniquement, journalisation"
+      description: "Informations devant être conservées au sein de la compagnie, mais ne relevant pas d'un caractère stratégique et/ou très sensible. Les informations peuvent circuler librement uniquement à l'intérieur de la compagnie."
     C3:
       label: "Confidentiel"
       couleur: "#E65100"
-      description: "Données personnelles/financières, accès restreint"
+      description: "Informations dont la divulgation non autorisée est susceptible de porter atteinte ou nuire aux activités de la compagnie. Les informations ne doivent être communiquées qu'aux personnes/entités directement concernées."
     C4:
-      label: "Hautement confidentiel"
+      label: "Hautement Confidentiel"
       couleur: "#C62828"
-      description: "Données de santé, stratégie, rémunération dirigeant"
+      description: "Informations extrêmement sensibles et dont la divulgation est susceptible de causer des dommages catastrophiques à la compagnie. Le partage de ce type de documents ne doit se faire qu'entre un groupe très restreint de personnes, selon les règles du moindre privilège et du besoin de connaître."
 
 scoring:
   alert_threshold: 70
@@ -56,7 +56,7 @@ microsoft365:
     C1: "Public"
     C2: "Interne"
     C3: "Confidentiel"
-    C4: "Hautement confidentiel"
+    C4: "Hautement Confidentiel"
   purview:
     simulation: true     # ne crée aucune règle cloud depuis ce POC
     policy_template: "COMAR-DLP-POC"

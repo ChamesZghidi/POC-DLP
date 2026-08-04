@@ -7,7 +7,7 @@ Barème (bandes de score par niveau, avant nuances) :
     C1 (Public)                 -> base 10  (plage typique 10-40)
     C2 (Interne)                -> base 30  (plage typique 30-60)
     C3 (Confidentiel)           -> base 50  (plage typique 50-80)
-    C4 (Hautement confidentiel) -> base 70  (plage typique 70-100)
+    C4 (Hautement Confidentiel) -> base 70  (plage typique 70-100)
 
 Le seuil d'alerte est fixé à 70/100 : un document C4 est donc presque
 toujours proche ou au-dessus du seuil (cohérent avec son niveau de

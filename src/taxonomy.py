@@ -79,10 +79,7 @@ DOCUMENT_TYPES = [
     DocumentType("Contrat de travail", "RH", "C3"),
     DocumentType("Bulletin de paie", "Finance", "C3"),
     DocumentType("Facture client", "Finance", "C3"),
-    DocumentType("Coordonnées bancaires client", "Finance", "C3"),
     DocumentType("Contrat commercial", "Juridique", "C3"),
-    DocumentType("Dossier client (données personnelles)", "Personnelles", "C3"),
-    DocumentType("Attestation bancaire (RIB tunisien)", "Finance", "C3"),
     DocumentType("Déclaration sinistre assurance", "Personnelles", "C3"),
     DocumentType("Devis et simulation assurance", "Finance", "C3"),
     DocumentType("Demande de souscription contrat", "Personnelles", "C3"),
@@ -100,6 +97,9 @@ DOCUMENT_TYPES = [
     DocumentType("Plan de restructuration", "Strategique", "C4"),
     DocumentType("Litige juridique majeur", "Juridique", "C4"),
     DocumentType("Rapport médical médecin conseil", "Medicale", "C4"),
+    DocumentType("Dossier client (données personnelles)", "Personnelles", "C4"),
+    DocumentType("Coordonnées bancaires client", "Finance", "C4"),
+    DocumentType("Attestation bancaire (RIB tunisien)", "Finance", "C4"),
 ]
 
 

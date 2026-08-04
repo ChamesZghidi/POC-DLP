@@ -85,7 +85,7 @@ class M365Integration:
         self.config = load_config()
         self.m365_config = self.config.get("microsoft365", {})
         self.label_map = self.m365_config.get("sensitivity_labels", {
-            "C1": "Public", "C2": "Interne", "C3": "Confidentiel", "C4": "Hautement confidentiel",
+            "C1": "Public", "C2": "Interne", "C3": "Confidentiel", "C4": "Hautement Confidentiel",
         })
         self._token = None
         self._graph_client = None
@@ -210,7 +210,7 @@ class M365Integration:
             "C1": "Diffusion libre — équivalent étiquette Microsoft « Public »",
             "C2": "Usage interne — équivalent étiquette Microsoft « Interne »",
             "C3": "Données confidentielles — étiquette « Confidentiel » avec chiffrement recommandé",
-            "C4": "Données hautement sensibles — étiquette « Hautement confidentiel » avec chiffrement obligatoire",
+            "C4": "Données hautement sensibles — étiquette « Hautement Confidentiel » avec chiffrement obligatoire",
         }
         return SensitivityLabelMapping(
             level=level,
