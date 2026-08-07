@@ -29,6 +29,20 @@ import yaml
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
 
+# Alias de catégories détectées vers les clés de routage_validation (config.yaml).
+CATEGORY_ROUTING_ALIASES = {
+    "Personnelles": "Personnelles",
+    "Personelle": "Personnelles",
+    "Personnelle": "Personnelles",
+    "Medical": "Medicale",
+    "Médicale": "Medicale",
+    "Stratégique": "Strategique",
+    "Securité": "Securite",
+    "Sécurité": "Securite",
+    "Indeterminee": "default",
+    "Publique": "default",
+}
+
 
 def load_config() -> dict:
     if CONFIG_PATH.exists():
@@ -221,6 +235,86 @@ class M365Integration:
     def get_all_label_mappings(self) -> list:
         return [self.get_sensitivity_label(lvl) for lvl in ["C1", "C2", "C3", "C4"]]
 
+    def get_routage_validation(self) -> dict[str, str]:
+        """Retourne la table catégorie -> adresse du groupe validateur."""
+        routing = self.m365_config.get("routage_validation", {})
+        return {str(key): str(value) for key, value in routing.items() if key != "default"}
+
+    def get_validation_recipient(self, category: Optional[str]) -> str:
+        """Résout l'adresse du groupe validateur pour une catégorie métier."""
+        routing = self.m365_config.get("routage_validation", {})
+        default = routing.get("default", "rssi@comar.tn")
+        if not category:
+            return default
+
+        candidates = [category.strip()]
+        alias = CATEGORY_ROUTING_ALIASES.get(category.strip())
+        if alias and alias not in candidates:
+            candidates.append(alias)
+
+        for key in candidates:
+            if key in routing:
+                return routing[key]
+        return default
+
+    def resolve_alert_recipients(
+        self,
+        category: Optional[str] = None,
+        explicit_recipients: Optional[list[str]] = None,
+    ) -> list[str]:
+        """Priorité : destinataires explicites > routage par catégorie > .env."""
+        if explicit_recipients:
+            return [address.strip() for address in explicit_recipients if address.strip()]
+
+        if category:
+            routed = self.get_validation_recipient(category)
+            if routed:
+                return [routed]
+
+        env_recipients = self._load_env_credentials().get("alert_recipients", "")
+        return [value.strip() for value in env_recipients.split(",") if value.strip()]
+
+    def get_rssi_address(self) -> str:
+        return str(self.m365_config.get("routage_validation", {}).get("default", "rssi@comar.tn"))
+
+    def should_cc_rssi(
+        self,
+        category: Optional[str],
+        level: Optional[str] = None,
+        score: Optional[int] = None,
+    ) -> bool:
+        """Met le RSSI en copie lorsque l'alerte est adressée à un groupe métier sensible."""
+        primary = self.get_validation_recipient(category).lower()
+        if primary == self.get_rssi_address().lower():
+            return False
+        if level == "C4":
+            return True
+        if score is not None and score > 80:
+            return True
+        if category in ("Strategique", "Medicale", "Juridique"):
+            return True
+        if level == "C3":
+            return True
+        return False
+
+    def resolve_alert_routing(
+        self,
+        category: Optional[str] = None,
+        level: Optional[str] = None,
+        score: Optional[int] = None,
+        explicit_recipients: Optional[list[str]] = None,
+    ) -> tuple[list[str], list[str]]:
+        to_recipients = self.resolve_alert_recipients(
+            category=category,
+            explicit_recipients=explicit_recipients,
+        )
+        cc_recipients: list[str] = []
+        if self.should_cc_rssi(category, level, score):
+            rssi = self.get_rssi_address()
+            if rssi and rssi not in to_recipients:
+                cc_recipients = [rssi]
+        return to_recipients, cc_recipients
+
     def create_purview_incident(
         self,
         document_name: str,
@@ -289,16 +383,47 @@ class M365Integration:
         }
 
     def send_dlp_alert(
-        self, subject: str, html_body: str, report_bytes: bytes,
-        report_name: str = "rapport-dlp.pdf", report_content_type: str = "application/pdf",
+        self,
+        subject: str,
+        html_body: str,
+        report_bytes: bytes,
+        report_name: str = "rapport-dlp.pdf",
+        report_content_type: str = "application/pdf",
+        category: Optional[str] = None,
+        justification: Optional[str] = None,
+        level: Optional[str] = None,
+        score: Optional[int] = None,
+        recipients: Optional[list[str]] = None,
     ) -> tuple[bool, str]:
         """Envoie un rapport DLP en pièce jointe via la boîte pilote Graph."""
         creds = self._load_env_credentials()
-        recipients = [value.strip() for value in creds["alert_recipients"].split(",") if value.strip()]
+        to_recipients, cc_recipients = self.resolve_alert_routing(
+            category=category,
+            level=level,
+            score=score,
+            explicit_recipients=recipients,
+        )
+        if justification and justification.strip():
+            safe_justification = (
+                justification.strip()
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
+            html_body += f"<p><b>Justification métier :</b> {safe_justification}</p>"
         if not self._live_mode_enabled():
-            return False, "Envoi désactivé : le connecteur M365 est en mode simulation."
-        if not recipients:
-            return False, "Envoi désactivé : renseignez DLP_ALERT_RECIPIENTS dans .env."
+            routed_to = ", ".join(to_recipients) if to_recipients else "non configuré"
+            if cc_recipients:
+                routed_to += f" (copie : {', '.join(cc_recipients)})"
+            return False, (
+                "Envoi désactivé : le connecteur M365 est en mode simulation. "
+                f"Destinataire(s) prévu(s) : {routed_to}."
+            )
+        if not to_recipients:
+            return False, (
+                "Envoi désactivé : configurez routage_validation dans config.yaml "
+                "ou DLP_ALERT_RECIPIENTS dans .env."
+            )
         if not all([creds["tenant_id"], creds["client_id"], creds["client_secret"], creds["target_user_id"]]):
             return False, "Envoi impossible : configuration Graph pilote incomplète."
         try:
@@ -308,7 +433,7 @@ class M365Integration:
                 "message": {
                     "subject": subject,
                     "body": {"contentType": "HTML", "content": html_body},
-                    "toRecipients": [{"emailAddress": {"address": address}} for address in recipients],
+                    "toRecipients": [{"emailAddress": {"address": address}} for address in to_recipients],
                     "attachments": [{
                         "@odata.type": "#microsoft.graph.fileAttachment",
                         "name": report_name, "contentType": report_content_type, "contentBytes": attachment,
@@ -316,9 +441,16 @@ class M365Integration:
                 },
                 "saveToSentItems": True,
             }
+            if cc_recipients:
+                payload["message"]["ccRecipients"] = [
+                    {"emailAddress": {"address": address}} for address in cc_recipients
+                ]
             user_id = quote(creds["target_user_id"], safe="@.")
             self._graph_post(token, f"/users/{user_id}/sendMail", payload)
-            return True, "Alerte envoyée avec le rapport PDF en pièce jointe."
+            success_msg = f"Alerte envoyée avec le rapport PDF en pièce jointe vers {', '.join(to_recipients)}."
+            if cc_recipients:
+                success_msg += f" Copie RSSI : {', '.join(cc_recipients)}."
+            return True, success_msg
         except Exception as exc:
             return False, f"Échec de l'envoi Graph : {exc}"
 

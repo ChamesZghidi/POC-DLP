@@ -179,6 +179,29 @@ class M365Tests(unittest.TestCase):
         self.assertFalse(sent)
         self.assertIn("simulation", message)
 
+    def test_validation_routing_by_category(self):
+        m365 = M365Integration()
+        self.assertEqual(m365.get_validation_recipient("RH"), "rh-validateurs@comar.tn")
+        self.assertEqual(m365.get_validation_recipient("Medicale"), "medecin-conseil@comar.tn")
+        self.assertEqual(m365.get_validation_recipient("Indeterminee"), "rssi@comar.tn")
+
+    def test_alert_routing_uses_category_before_env(self):
+        m365 = M365Integration()
+        recipients = m365.resolve_alert_recipients(category="Juridique")
+        self.assertEqual(recipients, ["direction-juridique@comar.tn"])
+
+    def test_finance_alert_includes_rssi_copy_for_sensitive_cases(self):
+        m365 = M365Integration()
+        to_recipients, cc_recipients = m365.resolve_alert_routing(category="Finance", level="C3", score=50)
+        self.assertEqual(to_recipients, ["finance-validateurs@comar.tn"])
+        self.assertEqual(cc_recipients, ["rssi@comar.tn"])
+
+    def test_rssi_primary_alert_has_no_copy(self):
+        m365 = M365Integration()
+        to_recipients, cc_recipients = m365.resolve_alert_routing(category="Personnelles", level="C4", score=95)
+        self.assertEqual(to_recipients, ["rssi@comar.tn"])
+        self.assertEqual(cc_recipients, [])
+
     def test_c4_external_transfer_is_always_blocked(self):
         result = check_transfer_policy("C4", "a@comar.tn", "b@example.org", "Exchange Online (Pro)", True)
         self.assertFalse(result.allowed)

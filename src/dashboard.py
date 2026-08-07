@@ -408,15 +408,25 @@ with tab_analyse:
             st.session_state.documents[doc_id], policy_rows,
             [item for item in st.session_state.action_log if item["document"] == uploaded_file.name],
         )
+        m365 = M365Integration()
+        alert_to, alert_cc = m365.resolve_alert_routing(
+            category=scoring.category, level=scoring.level, score=scoring.score,
+        )
         report_col, email_col = st.columns(2)
         with report_col:
             st.download_button("Télécharger le rapport DLP (PDF)", report_pdf, f"rapport-dlp-{doc_id}.pdf", "application/pdf", use_container_width=True)
         with email_col:
+            if alert_to:
+                routing_hint = f"Validateur {scoring.category} : **{alert_to[0]}**"
+                if alert_cc:
+                    routing_hint += f" · Copie RSSI : **{', '.join(alert_cc)}**"
+                st.caption(routing_hint)
             if st.button("Envoyer l'alerte et le rapport", key=f"send_alert_{doc_id}", use_container_width=True):
                 sent, message = M365Integration().send_dlp_alert(
                     subject=f"[DLP {scoring.level}] {uploaded_file.name} · score {scoring.score}/100",
-                    html_body=f"<h2>Alerte DLP COMAR</h2><p>Document : <b>{html.escape(uploaded_file.name)}</b></p><p>Niveau : <b>{scoring.level}</b> · Score : <b>{scoring.score}/100</b></p><p>Le rapport PDF détaillé est joint.</p>",
+                    html_body=f"<h2>Alerte DLP COMAR</h2><p>Document : <b>{html.escape(uploaded_file.name)}</b></p><p>Catégorie : <b>{html.escape(scoring.category)}</b></p><p>Niveau : <b>{scoring.level}</b> · Score : <b>{scoring.score}/100</b></p><p>Le rapport PDF détaillé est joint.</p>",
                     report_bytes=report_pdf, report_name=f"rapport-dlp-{doc_id}.pdf",
+                    category=scoring.category, level=scoring.level, score=scoring.score,
                 )
                 (st.success if sent else st.warning)(message)
 
@@ -483,14 +493,32 @@ with tab_analyse:
         st.markdown('<div class="section-title">✈️ Simulateur de Transfert (Politique de transfert COMAR)</div>', unsafe_allow_html=True)
         st.caption("Simulez l'envoi de ce document pour valider les règles de transfert (canaux approuvés, destinataires internes/externes, chiffrement).")
 
+        category_validator = m365.get_validation_recipient(scoring.category)
+        transfer_alert_to, transfer_alert_cc = m365.resolve_alert_routing(
+            category=scoring.category, level=scoring.level, score=scoring.score,
+        )
+
         with st.form(key=f"transfer_form_{doc_id}"):
             col_t1, col_t2 = st.columns(2)
             with col_t1:
-                default_dest = metadata.get("destinataire", "collaborateur@comar.tn") if metadata.get("est_email", False) else "collaborateur@comar.tn"
-                recipient_email = st.text_input("Adresse e-mail du destinataire", value=default_dest, key=f"recip_{doc_id}")
+                recipient_email = st.text_input(
+                    "Adresse e-mail du destinataire",
+                    value=category_validator,
+                    help=f"Prérempli selon la catégorie détectée ({scoring.category}). Modifiable si le transfert cible un autre interlocuteur.",
+                    key=f"recip_{doc_id}",
+                )
 
                 default_send = metadata.get("expediteur", "dpo@comar.tn") if metadata.get("est_email", False) else "dpo@comar.tn"
                 sender_email = st.text_input("Adresse e-mail de l'expéditeur", value=default_send, key=f"send_{doc_id}")
+
+                justification = st.text_area(
+                    "Justification métier",
+                    value="",
+                    placeholder="Décrivez le besoin opérationnel justifiant ce transfert (contexte, urgence, destinataire concerné…).",
+                    help="Obligatoire pour certains transferts externes de documents C3.",
+                    key=f"just_{doc_id}",
+                    height=80,
+                )
             with col_t2:
                 channel_opt = st.selectbox(
                     "Canal de transfert",
@@ -506,6 +534,12 @@ with tab_analyse:
                 )
                 is_encrypted = st.checkbox("Chiffrer la pièce jointe / le support", value=False, key=f"enc_{doc_id}")
 
+            if transfer_alert_cc:
+                st.caption(
+                    f"En cas d'alerte ou de demande de validation, copie RSSI : **{', '.join(transfer_alert_cc)}** "
+                    f"(document {scoring.level}, catégorie {scoring.category})."
+                )
+
             submit_transfer = st.form_submit_button("Valider le transfert DLP", use_container_width=True)
 
             if submit_transfer:
@@ -515,7 +549,8 @@ with tab_analyse:
                     sender=sender_email,
                     recipient=recipient_email,
                     channel=channel_opt,
-                    is_encrypted=is_encrypted
+                    is_encrypted=is_encrypted,
+                    justification=justification,
                 )
 
                 if res_transfer.allowed:
@@ -541,6 +576,7 @@ with tab_analyse:
                 st.session_state.transfer_decisions[doc_id] = {
                     "allowed": res_transfer.allowed, "recipient": recipient_email, "channel": channel_opt,
                     "reason": res_transfer.reason, "encrypted": is_encrypted,
+                    "justification": justification,
                 }
 
         decision = st.session_state.transfer_decisions.get(doc_id)
@@ -551,15 +587,27 @@ with tab_analyse:
             if decision["allowed"] and scoring.score <= 80:
                 st.success("Pour un environnement réel, effectuez ensuite le partage dans Exchange, Teams, OneDrive ou SharePoint : la politique Purview appliquera la protection côté Microsoft 365.")
             else:
-                if st.button("Demander une validation RSSI/DPO", key=f"approval_{doc_id}", use_container_width=True):
+                validator_email = transfer_alert_to[0] if transfer_alert_to else category_validator
+                cc_label = f" (copie RSSI : {', '.join(transfer_alert_cc)})" if transfer_alert_cc else ""
+                if st.button(f"Demander une validation à {validator_email}{cc_label}", key=f"approval_{doc_id}", use_container_width=True):
                     updated_pdf = build_document_report_pdf(
                         st.session_state.documents[doc_id], policy_rows,
                         [item for item in st.session_state.action_log if item["document"] == uploaded_file.name],
                     )
                     sent, message = M365Integration().send_dlp_alert(
                         subject=f"[Validation DLP] {uploaded_file.name} · {scoring.level} · score {scoring.score}/100",
-                        html_body=f"<h2>Validation DLP requise</h2><p>Document : <b>{html.escape(uploaded_file.name)}</b></p><p>Destinataire demandé : <b>{html.escape(decision['recipient'])}</b></p><p>Canal : <b>{html.escape(decision['channel'])}</b></p><p>Motif : {html.escape(decision['reason'])}</p><p>Le document n'est pas transmis par cette demande. Le rapport PDF est joint.</p>",
+                        html_body=(
+                            f"<h2>Validation DLP requise</h2>"
+                            f"<p>Document : <b>{html.escape(uploaded_file.name)}</b></p>"
+                            f"<p>Catégorie : <b>{html.escape(scoring.category)}</b></p>"
+                            f"<p>Destinataire demandé : <b>{html.escape(decision['recipient'])}</b></p>"
+                            f"<p>Canal : <b>{html.escape(decision['channel'])}</b></p>"
+                            f"<p>Motif : {html.escape(decision['reason'])}</p>"
+                            f"<p>Le document n'est pas transmis par cette demande. Le rapport PDF est joint.</p>"
+                        ),
                         report_bytes=updated_pdf, report_name=f"validation-dlp-{doc_id}.pdf",
+                        category=scoring.category, level=scoring.level, score=scoring.score,
+                        justification=decision.get("justification"),
                     )
                     (st.success if sent else st.warning)(message)
 

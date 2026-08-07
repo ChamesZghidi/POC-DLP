@@ -51,6 +51,16 @@ microsoft365:
     - "Mail.Send"       # alertes DLP envoyées uniquement vers les destinataires déclarés
     - "Files.Read.All"  # à remplacer par Sites.Selected si possible
     - "User.Read.All"
+  routage_validation:
+    RH: "rh-validateurs@comar.tn"
+    Finance: "finance-validateurs@comar.tn"
+    Medicale: "medecin-conseil@comar.tn"
+    Juridique: "direction-juridique@comar.tn"
+    Strategique: "comite-executif@comar.tn"
+    Securite: "rssi@comar.tn"
+    Personnelles: "rssi@comar.tn"
+    Personelle: "rssi@comar.tn"
+    default: "rssi@comar.tn"
   target_user_id: ""    # UPN ou object ID de la boîte pilote ; jamais un utilisateur choisi automatiquement
   sensitivity_labels:
     C1: "Public"
